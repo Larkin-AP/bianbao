@@ -883,7 +883,7 @@ HexForward::~HexForward() = default;
                     //}
                     //std::cout << std::endl;
 
-                    //for (int i = 0; i < 34; ++i)
+                    //for (int i = 0; i < 19; ++i)
                     //    lout() << ee[i] << "\t";
                     //lout() << std::endl;
 
@@ -902,14 +902,20 @@ HexForward::~HexForward() = default;
                 {
                     TCurve s1(4, 2);
                     s1.getCurveParam();
-                    EllipseTrajectory e1(0.0001, 0.0001, 0, s1);
+                    EllipseTrajectory e1(0.01, 0.01, 0, s1);
                     BodyPose body_s(0, 0, 0, s1);
 
 
-                    ret = tripodPlan(3, count() - 1-a, &e1, input_angle);
+                    ret = tripodPlan(4, count() - 1-a, &e1, input_angle);
                     aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
+                    //aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
+
                     aris::dynamic::s_vc(18, file_current_leg + 0, ee + 16);
 
+
+                    //for (int i = 0; i < 19; ++i)
+                    //    lout() << ee[i] << "\t";
+                    //lout() << std::endl;
 
                     //for (int i = 0; i < 34; i++) {
                     //    std::cout << ee[i] << std::endl;
@@ -976,9 +982,15 @@ HexForward::~HexForward() = default;
 
                 }
                 //末端位置
-                //for (int i = 0; i < 34; ++i)
-                //    lout() << ee[i] << "\t";
-                //lout() << std::endl;
+
+
+                //for (int i = 0; i < 18; i++) {
+                //    std::cout << ee[i + 16] << "\t";
+                //    if (i % 4 == 3) {
+                //        std::cout << std::endl;
+                //    }
+                //}
+
 
                 return ret;
 
@@ -1132,6 +1144,147 @@ HexForward::~HexForward() = default;
             SingleLeg::~SingleLeg() = default;
 
 
+            //单腿运动
+            auto MoveBody::prepareNrt()->void
+            {
+
+            }
+            auto MoveBody::executeRT()->int
+            {
+                //数值解和实际解xyr相差一个负号
+                //如果要输出cmd文件，则不能创建储存文件，需要注释掉
+                if (count() == 1)this->master()->logFileRawName("single");
+
+
+                //a为给机器人缓冲落地的时间设置
+                int ret = 0, a = 100;
+                //末端为六个末端的三个坐标和身体的位姿矩阵 3*6+16=34
+                static double ee0[34];
+                double ee[34];
+
+                //落地缓冲时间
+                if (count() <= a)
+                {
+                    ret = 1;
+                    if (count() == 1)
+                    {
+                        model()->getOutputPos(ee0); //初始位置
+                        //s_vc好像是把ee0的数放到ee中，放34个数
+                        aris::dynamic::s_vc(34, ee0, ee);
+                    }
+                    aris::dynamic::s_vc(34, ee0, ee);
+                    model()->setOutputPos(ee);
+
+
+                    if (model()->inverseKinematics()) {
+                        std::cout << "inverse failed " << std::endl;
+                    }
+
+                    model()->setTime(0.001 * count());
+                }
+                else
+                {
+
+
+
+                    double body_pos[16] = { 1,0,0,0,
+                                            0,1,0,0,
+                                            0,0,1,0,
+                                            0,0,0,1 };
+
+                    double l = 0.0463672;
+
+                    double coeff = (count() - a) / 100.0;
+                    double theta = 0 / 100.0 * coeff;
+
+
+                    if (coeff == 1) {
+                        ret = 0;
+                    }
+                    else {
+                        ret = 1;
+                    }
+
+                    //double leg1[3] = { 0.05+l * sin(theta),-0.0025-l * cos(theta),0.026 };
+                    double leg1[3] = { 0.05, -0.0488072, 0.026 };
+                    std::cout << leg1[0] << "\t" << leg1[1] << "\t" << leg1[2] << std::endl;
+
+
+
+
+
+
+
+                    //这些坐标都需要是在地面坐标系下的坐标值
+                    aris::dynamic::s_vc(16, body_pos + 0, ee + 0);
+                    aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
+                    aris::dynamic::s_vc(3, leg1 + 0, ee + 16);
+
+
+
+
+
+
+
+                    //第一条腿电机的位置
+                    //double leg1MotorPos[3] = { 0 };
+                    //for (int i = 0; i < 3; ++i) {
+                    //    lout() << input_angle[i] << "\t";
+                    //}
+                    //lout() << std::endl;
+
+                    //解析解计算得到的输入的角度
+                    //for (int i = 0; i < 18; ++i)
+                    //    lout() << input_angle[i] << "\t";
+                    //lout() << std::endl;
+
+                    model()->setOutputPos(ee);
+                    //model()->setinputpos(input_angle);
+                    //if (model()->forwardkinematics()) {
+                    //    std::cout << "forward failer!" << std::endl;
+                    //}
+
+
+                    if (model()->inverseKinematics())
+                    {
+
+                        std::cout << "inverse failed!!!" << std::endl;
+                        //for (int i = 0; i < 34; ++i) {
+                        //    std::cout << ee[i] << std::endl;
+                        //}
+                        std::cout << "ret = " << ret << std::endl;
+                    }
+                    // 数值解计算得到的输入的角度
+                    double input[18];
+                    model()->getInputPos(input);
+                    for (int i = 0; i < 18; ++i)
+                        lout() << input[i] << "\t";
+                    lout() << std::endl;
+
+                    model()->setTime(0.001 * count());
+
+
+
+                    if (ret == 0) std::cout << count() << std::endl;
+
+                }
+                ////末端位置
+                //for (int i = 0; i < 34; ++i)
+                //    lout() << ee[i] << "\t";
+                //lout() << std::endl;
+                return ret;
+
+            }
+            MoveBody::MoveBody(const std::string& name)
+            {
+                aris::core::fromXmlString(command(),
+                    "<Command name=\"single\"/>");
+            }
+            MoveBody::~MoveBody() = default;
+
+
+
+
             //后退
             auto HexDynamicBackTest::prepareNrt()->void
             {
@@ -1217,7 +1370,7 @@ HexForward::~HexForward() = default;
             {
                 //如果要输出cmd文件，则不能创建储存文件，需要注释掉
                 //if (count() == 1)this->master()->logFileRawName("eeTraj");    
-                //if (count() == 1)this->master()->logFileRawName("leg1MotorPos"); //拿到第1条腿的电机位置
+                //if (count() == 1)this->master()->logFileRawName("MotorPos"); //拿到第1条腿的电机位置
                 //if (count() == 1)this->master()->logFileRawName("leg1EndTraj"); //拿到第1条腿的末端位置，要得到腿坐标系下的
 
                 //a为给机器人缓冲落地的时间设置
@@ -1248,11 +1401,11 @@ HexForward::~HexForward() = default;
                 {
                     TCurve s1(4, 2);
                     s1.getCurveParam();
-                    EllipseTrajectory e1(0, 0.005, 0.01, s1);
+                    EllipseTrajectory e1(0, 0.01, 0.01, s1);
                     BodyPose body_s(0, 0, 0, s1);
 
 
-                    ret = tripodPlan(3, count() - 1 - a, &e1, input_angle);
+                    ret = tripodPlan(4, count() - 1 - a, &e1, input_angle);
                     aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
                     aris::dynamic::s_vc(18, file_current_leg + 0, ee + 16);
 
@@ -1282,6 +1435,13 @@ HexForward::~HexForward() = default;
                         //}
                         std::cout << "ret = " << ret << std::endl;
                     }
+
+
+                    //double input[18];
+                    //model()->getInputPos(input);
+                    //for (int i = 0; i < 18; ++i)
+                    //    lout() << input[i] << "\t";
+                    //lout() << std::endl;
 
                     model()->setTime(0.001 * count());
 
@@ -1387,6 +1547,7 @@ HexForward::~HexForward() = default;
             {
 
                 //如果要输出cmd文件，则不能创建储存文件，需要注释掉
+                //if (count() == 1)this->master()->logFileRawName("eeTraj");
                 //if (count() == 1)this->master()->logFileRawName("motInput");  
                 //if (count() == 1)this->master()->logFileRawName("leg1MotorPos2"); //拿到第1条腿的电机位置
                 //if (count() == 1)this->master()->logFileRawName("leg1EndTraj2"); //拿到第1条腿的末端位置，要得到腿坐标系下的
@@ -1419,11 +1580,11 @@ HexForward::~HexForward() = default;
                 {
                     TCurve s1(4, 2);
                     s1.getCurveParam();
-                    EllipseTrajectory e1(0, 0.005, 0, s1);
-                    BodyPose body_s(0, -20, 0, s1); //目前看来就是这个正负号影响步长的改变
+                    EllipseTrajectory e1(0, 0.001, 0, s1);
+                    BodyPose body_s(0,10, 0, s1); //目前看来就是这个正负号影响步长的改变
 
 
-                    ret = turnPlanTripod(3, count() - 1 - a, &e1, &body_s, input_angle);
+                    ret = turnPlanTripod(2, count() - 1 - a, &e1, &body_s, input_angle);
                     aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
                     aris::dynamic::s_vc(18, file_current_leg + 0, ee + 16);
 
@@ -1466,6 +1627,10 @@ HexForward::~HexForward() = default;
                     if (ret == 0) std::cout << count() << std::endl;
 
                 }
+
+                //for (int i = 0; i < 34; ++i)
+                //    lout() << ee[i] << "\t";
+                //lout() << std::endl;
                 return ret;
 
             }
@@ -1651,78 +1816,78 @@ HexForward::~HexForward() = default;
                 const double leg1_pe[8][3]{
                     {0.055,      -0.003,      0.0}, //虎克铰 x轴
                     {0.055,      -0.003,      0.0}, //虎克铰 z轴
-                    {0.0690950,  -0.0127866,  0.0121752}, //J1 75&-45_20
-                    {0.0675950,  -0.0286536,  0.0}, //J2 -45_20&45_20_end
-                    {0.0690950,  -0.0445207,  0.0121752}, //J3 45_20_end&75_end
-                    {0.0690950,  -0.0445207,  -0.0121752}, //J4 -45_20_end&75_end
-                    {0.0705950,  -0.0286536,  0.0}, //J5 45_20&-45_20_end
-                    {0.0690950,  -0.0127866,  0.0121752} //J6 75&45_20  
+                    {0.0690950,  -0.0112035,  0.0132935}, //J1 75&-45_20
+                    {0.0675950,  -0.0284562,  0.0031769}, //J2 -45_20&45_20_end
+                    {0.0690950,  -0.0458437,  0.0130599}, //J3 45_20_end&75_end
+                    {0.0690950,  -0.0425026,  -0.0110603}, //J4 -45_20_end&75_end
+                    {0.0705950,  -0.0284562,  0.0031769}, //J5 45_20&-45_20_end
+                    {0.0690950,  -0.0142190,  -0.0108696} //J6 75&45_20  
                 };
 
                 const double leg2_pe[8][3]{
                     {0.0275,     -0.003, 0.0476314},
                     {0.0275,     -0.003, 0.0476314},
-                    {0.0240035, -0.0127866, 0.0659256},
-                    {0.0337975, -0.0286536,  0.058539},
-                    {0.0240035, -0.0445207, 0.0659256},
-                    {0.0450915, -0.0445207, 0.0537504},
-                    {0.0352975, -0.0286536, 0.0611371},
-                    {0.0240035, -0.0127866, 0.0659256}
+                    {0.023035, -0.0112035, 0.0664848},
+                    {0.0310462, -0.0284562, 0.0601274},
+                    {0.0232373, -0.0458437,  0.066368},
+                    {0.044126, -0.0425026, 0.0543079},
+                    {0.0325462, -0.0284562, 0.0627255},
+                    {0.0439608,  -0.014219, 0.0544032}
                 };
 
                 const double leg3_pe[8][3]{
                     {-0.0275,     -0.003, 0.0476314},
                     {-0.0275,     -0.003, 0.0476314},
-                    {-0.0450915, -0.0127866, 0.0537504},
-                    {-0.0337975, -0.0286536,  0.058539},
-                    {-0.0450915, -0.0445207, 0.0537504},
-                    {-0.0240035, -0.0445207, 0.0659256},
-                    {-0.0352975, -0.0286536, 0.0611371},
-                    {-0.0450915, -0.0127866, 0.0537504}
+                    {-0.04606, -0.0112035, 0.0531913},
+                    {-0.0365488, -0.0284562, 0.0569505},
+                    {-0.0458577, -0.0458437, 0.0533081},
+                    {-0.024969, -0.0425026, 0.0653682},
+                    {-0.0380488, -0.0284562, 0.0595486},
+                    {-0.0251342,  -0.014219, 0.0652728}
                 };
 
                 const double leg4_pe[8][3]{
-                    {-0.055,     -0.003, 2.08167e-17},
-                    {-0.055,     -0.003, 2.08167e-17},
-                    {-0.069095, -0.0127866,  -0.0121752},
-                    {-0.067595, -0.0286536,  3.1225e-17},
-                    {-0.069095, -0.0445207,  -0.0121752},
-                    {-0.069095, -0.0445207,   0.0121752},
-                    {-0.070595, -0.0286536, 2.08167e-17},
-                    {-0.069095, -0.0127866,  -0.0121752}
+                    {-0.055,     -0.003, 0},
+                    {-0.055,     -0.003, 0},
+                    {-0.069095, -0.0112035,  -0.0132935},
+                    {-0.067595, -0.0284562,  -0.0031769},
+                    {-0.069095, -0.0458437,  -0.0130599},
+                    {-0.069095, -0.0425026,   0.0110603},
+                    {-0.070595, -0.0284562,  -0.0031769},
+                    {-0.069095,  -0.014219,   0.0108696}
                 };
 
                 const double leg5_pe[8][3]{
                     {-0.0275,     -0.003, -0.0476314},
                     {-0.0275,     -0.003, -0.0476314},
-                    {-0.0240035, -0.0127866, -0.0659256},
-                    {-0.0337975, -0.0286536,  -0.058539},
-                    {-0.0240035, -0.0445207, -0.0659256},
-                    {-0.0450915, -0.0445207, -0.0537504},
-                    {-0.0352975, -0.0286536, -0.0611371},
-                    {-0.0240035, -0.0127866, -0.0659256}
+                    {-0.023035, -0.0112035, -0.0664848},
+                    {-0.0310462, -0.0284562, -0.0601274},
+                    {-0.0232373, -0.0458437,  -0.066368},
+                    {-0.044126, -0.0425026, -0.0543079},
+                    {-0.0325462, -0.0284562, -0.0627255},
+                    {-0.0439608,  -0.014219, -0.0544032}
                 };
 
                 const double leg6_pe[8][3]{
                     {0.0275,     -0.003, -0.0476314},
                     {0.0275,     -0.003, -0.0476314},
-                    {0.0450915, -0.0127866, -0.0537504},
-                    {0.0337975, -0.0286536,  -0.058539},
-                    {0.0450915, -0.0445207, -0.0537504},
-                    {0.0240035, -0.0445207, -0.0659256},
-                    {0.0352975, -0.0286536, -0.0611371},
-                    {0.0450915, -0.0127866, -0.0537504}
+                    {0.04606, -0.0112035, -0.0531913},
+                    {0.0365488, -0.0284562, -0.0569505},
+                    {0.0458577, -0.0458437, -0.0533081},
+                    {0.024969, -0.0425026, -0.0653682},
+                    {0.0380488, -0.0284562, -0.0595486},
+                    {0.0251342,  -0.014219, -0.0652728}
                 };
 
                 //define ee pos  六条腿的末端//
                 const double ee_pos[6][6]
                 {
-                    {0.055,         -0.0518072,        0.0,		0.0,    0.0,    0.0},
-                    {0.0275,        -0.0518072,        0.0476314,		0.0,    0.0,    0.0},
-                    {-0.0275,       -0.0518072,        0.0476314,	    0.0,    0.0,    0.0},
-                    {-0.055,        -0.0518072,        0.0,	    0.0,    0.0,    0.0},
-                    {-0.0275,       -0.0518072,        -0.0476314,		0.0,    0.0,    0.0},
-                    {0.0275,        -0.0518072,        -0.0476314,	    0.0,    0.0,    0.0},
+                    {0.055,         -0.0513908,        0.0,		0.0,    0.0,    0.0},
+                    {0.0275,        -0.0513908,        0.0476314,		0.0,    0.0,    0.0},
+                    {-0.0275,       -0.0513908,        0.0476314,	    0.0,    0.0,    0.0},
+                    {-0.055,        -0.0513908,        0.0,	    0.0,    0.0,    0.0},
+                    {-0.0275,       -0.0513908,        -0.0476314,		0.0,    0.0,    0.0},
+                    {0.0275,        -0.0513908,        -0.0476314,	    0.0,    0.0,    0.0},
                 };
 
 
@@ -1807,130 +1972,130 @@ HexForward::~HexForward() = default;
 
                 //add geometry //
                 //hex->ground().geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\Adams_model2\\ground.x_t");
-                body.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\body.x_t");
+                body.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\body.x_t");
                 // leg1
 
-                leg1_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_z.x_t");
-                leg1_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_75.x_t");
-                leg1_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_-45_20.x_t");
-                leg1_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_45_20_end.x_t");
-                leg1_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_75_end.x_t");
-                leg1_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_-45_20_end.x_t");
-                leg1_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg1_45_20.x_t");
+                leg1_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_z.x_t");
+                leg1_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_75.x_t");
+                leg1_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_-45_20.x_t");
+                leg1_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_45_20_end.x_t");
+                leg1_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_75_end.x_t");
+                leg1_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_-45_20_end.x_t");
+                leg1_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg1_45_20.x_t");
                 
                 // leg2
 
-                leg2_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_z.x_t");
-                leg2_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_75.x_t");
-                leg2_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_-45_20.x_t");
-                leg2_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_45_20_end.x_t");
-                leg2_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_75_end.x_t");
-                leg2_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_-45_20_end.x_t");
-                leg2_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg2_45_20.x_t");
+                leg2_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_z.x_t");
+                leg2_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_75.x_t");
+                leg2_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_-45_20.x_t");
+                leg2_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_45_20_end.x_t");
+                leg2_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_75_end.x_t");
+                leg2_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_-45_20_end.x_t");
+                leg2_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg2_45_20.x_t");
 
                 // leg3
 
-                leg3_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_z.x_t");
-                leg3_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_75.x_t");
-                leg3_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_-45_20.x_t");
-                leg3_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_45_20_end.x_t");
-                leg3_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_75_end.x_t");
-                leg3_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_-45_20_end.x_t");
-                leg3_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg3_45_20.x_t");
+                leg3_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_z.x_t");
+                leg3_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_75.x_t");
+                leg3_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_-45_20.x_t");
+                leg3_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_45_20_end.x_t");
+                leg3_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_75_end.x_t");
+                leg3_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_-45_20_end.x_t");
+                leg3_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg3_45_20.x_t");
 
                 // leg4
 
-                leg4_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_z.x_t");
-                leg4_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_75.x_t");
-                leg4_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_-45_20.x_t");
-                leg4_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_45_20_end.x_t");
-                leg4_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_75_end.x_t");
-                leg4_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_-45_20_end.x_t");
-                leg4_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg4_45_20.x_t");
+                leg4_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_z.x_t");
+                leg4_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_75.x_t");
+                leg4_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_-45_20.x_t");
+                leg4_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_45_20_end.x_t");
+                leg4_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_75_end.x_t");
+                leg4_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_-45_20_end.x_t");
+                leg4_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg4_45_20.x_t");
 
                 // leg5
 
-                leg5_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_z.x_t");
-                leg5_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_75.x_t");
-                leg5_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_-45_20.x_t");
-                leg5_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_45_20_end.x_t");
-                leg5_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_75_end.x_t");
-                leg5_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_-45_20_end.x_t");
-                leg5_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg5_45_20.x_t");
+                leg5_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_z.x_t");
+                leg5_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_75.x_t");
+                leg5_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_-45_20.x_t");
+                leg5_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_45_20_end.x_t");
+                leg5_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_75_end.x_t");
+                leg5_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_-45_20_end.x_t");
+                leg5_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg5_45_20.x_t");
 
                 // leg6
 
-                leg6_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_z.x_t");
-                leg6_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_75.x_t");
-                leg6_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_-45_20.x_t");
-                leg6_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_45_20_end.x_t");
-                leg6_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_75_end.x_t");
-                leg6_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_-45_20_end.x_t");
-                leg6_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex\\leg6_45_20.x_t");
+                leg6_z.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_z.x_t");
+                leg6_75.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_75.x_t");
+                leg6_m45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_-45_20.x_t");
+                leg6_45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_45_20_end.x_t");
+                leg6_75_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_75_end.x_t");
+                leg6_m45_20_end.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_-45_20_end.x_t");
+                leg6_45_20.geometryPool().add<aris::dynamic::ParasolidGeometry>("C:\\Users\\jpche\\Desktop\\bianbao\\x_t_hex_bend\\leg6_45_20.x_t");
 
                 //add joints//
 
                 // leg1
                 auto& leg1_r1 = hex->addRevoluteJoint(leg1_75, leg1_z, leg1_pe[0], std::array<double, 3>{1, 0, 0}.data()); //虎克铰 x轴
                 auto& leg1_r2 = hex->addRevoluteJoint(leg1_z, body, leg1_pe[1], std::array<double, 3>{0, 0, 1}.data()); //虎克铰 z轴
-                auto& leg1_r3 = hex->addRevoluteJoint(leg1_m45_20, leg1_75, leg1_pe[2], std::array<double, 3>{0.7071,    0.4305, - 0.5610}.data()); //j1
+                auto& leg1_r3 = hex->addRevoluteJoint(leg1_m45_20, leg1_75, leg1_pe[2], std::array<double, 3>{0.7071,    0.3577, - 0.6100}.data()); //j1
                 auto& leg1_r4 = hex->addRevoluteJoint(leg1_45_20_end, leg1_m45_20, leg1_pe[3], std::array<double, 3>{1, 0, 0}.data()); //j2
-                auto& leg1_r5 = hex->addRevoluteJoint(leg1_75_end, leg1_45_20_end, leg1_pe[4], std::array<double, 3>{0.7071, -0.4305, -0.5610}.data());//j3
-                auto& leg1_r6 = hex->addRevoluteJoint(leg1_m45_20_end, leg1_75_end, leg1_pe[5], std::array<double, 3>{0.7071, -0.4305, +0.5610}.data());//j4
+                auto& leg1_r5 = hex->addRevoluteJoint(leg1_75_end, leg1_45_20_end, leg1_pe[4], std::array<double, 3>{0.7071, - 0.3494, - 0.6147}.data());//j3
+                auto& leg1_r6 = hex->addRevoluteJoint(leg1_m45_20_end, leg1_75_end, leg1_pe[5], std::array<double, 3>{0.7071, - 0.5034,    0.4966}.data());//j4
                 auto& leg1_r7 = hex->addRevoluteJoint(leg1_45_20, leg1_m45_20_end, leg1_pe[6], std::array<double, 3>{1, 0, 0}.data());//j5
-                auto& leg1_r8 = hex->addRevoluteJoint(leg1_75, leg1_45_20, leg1_pe[7], std::array<double, 3>{0.7071, 0.4305, 0.5610}.data());//j6
+                auto& leg1_r8 = hex->addRevoluteJoint(leg1_75, leg1_45_20, leg1_pe[7], std::array<double, 3>{0.7071,    0.4966,    0.5034}.data());//j6
                 
 
 
                 // leg2
                 auto& leg2_r1 = hex->addRevoluteJoint(leg2_75, leg2_z, leg2_pe[0], std::array<double, 3>{0.5, 0, 0.8660}.data()); 
                 auto& leg2_r2 = hex->addRevoluteJoint(leg2_z, body, leg2_pe[1], std::array<double, 3>{-0.8660, 0, 0.5}.data()); 
-                auto& leg2_r3 = hex->addRevoluteJoint(leg2_m45_20, leg2_75, leg2_pe[2], std::array<double, 3>{0.8394, 0.4305, 0.3319}.data());
+                auto& leg2_r3 = hex->addRevoluteJoint(leg2_m45_20, leg2_75, leg2_pe[2], std::array<double, 3>{0.8818,    0.3577,    0.3074}.data());
                 auto& leg2_r4 = hex->addRevoluteJoint(leg2_45_20_end, leg2_m45_20, leg2_pe[3], std::array<double, 3>{0.5, 0, 0.8660}.data());
-                auto& leg2_r5 = hex->addRevoluteJoint(leg2_75_end, leg2_45_20_end, leg2_pe[4], std::array<double, 3>{0.8394, -0.4305, 0.3319}.data());
-                auto& leg2_r6 = hex->addRevoluteJoint(leg2_m45_20_end, leg2_75_end, leg2_pe[5], std::array<double, 3>{-0.1323, -0.4305,  0.8929}.data());
+                auto& leg2_r5 = hex->addRevoluteJoint(leg2_75_end, leg2_45_20_end, leg2_pe[4], std::array<double, 3>{0.8859, - 0.3494,    0.3050}.data());
+                auto& leg2_r6 = hex->addRevoluteJoint(leg2_m45_20_end, leg2_75_end, leg2_pe[5], std::array<double, 3>{-0.0765, - 0.5034,    0.8607}.data());
                 auto& leg2_r7 = hex->addRevoluteJoint(leg2_45_20, leg2_m45_20_end, leg2_pe[6], std::array<double, 3>{0.5, 0, 0.8660}.data());
-                auto& leg2_r8 = hex->addRevoluteJoint(leg2_75, leg2_45_20, leg2_pe[7], std::array<double, 3>{-0.1323, 0.4305, 0.8929}.data());
+                auto& leg2_r8 = hex->addRevoluteJoint(leg2_75, leg2_45_20, leg2_pe[7], std::array<double, 3>{-0.0824,    0.4966,    0.8641}.data());
 
                 // leg3
                 auto& leg3_r1 = hex->addRevoluteJoint(leg3_75, leg3_z, leg3_pe[0], std::array<double, 3>{-0.5000,         0,    0.8660}.data());
                 auto& leg3_r2 = hex->addRevoluteJoint(leg3_z, body, leg3_pe[1], std::array<double, 3>{-0.8660,         0, - 0.5000}.data());
-                auto& leg3_r3 = hex->addRevoluteJoint(leg3_m45_20, leg3_75, leg3_pe[2], std::array<double, 3>{0.1323,    0.4305,    0.8929}.data());
+                auto& leg3_r3 = hex->addRevoluteJoint(leg3_m45_20, leg3_75, leg3_pe[2], std::array<double, 3>{0.1747,    0.3577,    0.9174}.data());
                 auto& leg3_r4 = hex->addRevoluteJoint(leg3_45_20_end, leg3_m45_20, leg3_pe[3], std::array<double, 3>{ -0.5000,         0,    0.8660}.data());
-                auto& leg3_r5 = hex->addRevoluteJoint(leg3_75_end, leg3_45_20_end, leg3_pe[4], std::array<double, 3>{ 0.1323, - 0.4305,    0.8929}.data());
-                auto& leg3_r6 = hex->addRevoluteJoint(leg3_m45_20_end, leg3_75_end, leg3_pe[5], std::array<double, 3>{-0.8394, - 0.4305,    0.3319}.data());
+                auto& leg3_r5 = hex->addRevoluteJoint(leg3_75_end, leg3_45_20_end, leg3_pe[4], std::array<double, 3>{ 0.1788, - 0.3494,    0.9197}.data());
+                auto& leg3_r6 = hex->addRevoluteJoint(leg3_m45_20_end, leg3_75_end, leg3_pe[5], std::array<double, 3>{-0.7836, - 0.5034,    0.3641}.data());
                 auto& leg3_r7 = hex->addRevoluteJoint(leg3_45_20, leg3_m45_20_end, leg3_pe[6], std::array<double, 3>{-0.5000,         0,    0.8660}.data());
-                auto& leg3_r8 = hex->addRevoluteJoint(leg3_75, leg3_45_20, leg3_pe[7], std::array<double, 3>{-0.8394,    0.4305,    0.3319}.data());
+                auto& leg3_r8 = hex->addRevoluteJoint(leg3_75, leg3_45_20, leg3_pe[7], std::array<double, 3>{-0.7895,    0.4966,    0.3607}.data());
 
                 // leg4
                 auto& leg4_r1 = hex->addRevoluteJoint(leg4_75, leg4_z, leg4_pe[0], std::array<double, 3>{-1.0000,         0,    0.0000}.data());
                 auto& leg4_r2 = hex->addRevoluteJoint(leg4_z, body, leg4_pe[1], std::array<double, 3>{-0.0000,         0, - 1.0000}.data());
-                auto& leg4_r3 = hex->addRevoluteJoint(leg4_m45_20, leg4_75, leg4_pe[2], std::array<double, 3>{ -0.7071,    0.4305,    0.5610}.data());
+                auto& leg4_r3 = hex->addRevoluteJoint(leg4_m45_20, leg4_75, leg4_pe[2], std::array<double, 3>{ -0.7071,    0.3577,    0.6100}.data());
                 auto& leg4_r4 = hex->addRevoluteJoint(leg4_45_20_end, leg4_m45_20, leg4_pe[3], std::array<double, 3>{ -1.0000,         0,    0.0000}.data());
-                auto& leg4_r5 = hex->addRevoluteJoint(leg4_75_end, leg4_45_20_end, leg4_pe[4], std::array<double, 3>{ -0.7071, - 0.4305,    0.5610}.data());
-                auto& leg4_r6 = hex->addRevoluteJoint(leg4_m45_20_end, leg4_75_end, leg4_pe[5], std::array<double, 3>{-0.7071, - 0.4305, - 0.5610}.data());
+                auto& leg4_r5 = hex->addRevoluteJoint(leg4_75_end, leg4_45_20_end, leg4_pe[4], std::array<double, 3>{ -0.7071, - 0.3494,    0.6147}.data());
+                auto& leg4_r6 = hex->addRevoluteJoint(leg4_m45_20_end, leg4_75_end, leg4_pe[5], std::array<double, 3>{-0.7071, - 0.5034, - 0.4966}.data());
                 auto& leg4_r7 = hex->addRevoluteJoint(leg4_45_20, leg4_m45_20_end, leg4_pe[6], std::array<double, 3>{   -1.0000,         0,    0.0000}.data());
-                auto& leg4_r8 = hex->addRevoluteJoint(leg4_75, leg4_45_20, leg4_pe[7], std::array<double, 3>{   -0.7071,    0.4305, - 0.5610}.data());
+                auto& leg4_r8 = hex->addRevoluteJoint(leg4_75, leg4_45_20, leg4_pe[7], std::array<double, 3>{   -0.7071,    0.4966, - 0.5034}.data());
 
                 // leg5
                 auto& leg5_r1 = hex->addRevoluteJoint(leg5_75, leg5_z, leg5_pe[0], std::array<double, 3>{-0.5000,         0, - 0.8660}.data());
                 auto& leg5_r2 = hex->addRevoluteJoint(leg5_z, body, leg5_pe[1], std::array<double, 3>{ 0.8660,         0, - 0.5000}.data());
-                auto& leg5_r3 = hex->addRevoluteJoint(leg5_m45_20, leg5_75, leg5_pe[2], std::array<double, 3>{  -0.8394,    0.4305, - 0.3319}.data());
+                auto& leg5_r3 = hex->addRevoluteJoint(leg5_m45_20, leg5_75, leg5_pe[2], std::array<double, 3>{ -0.8818,    0.3577, - 0.3074}.data());
                 auto& leg5_r4 = hex->addRevoluteJoint(leg5_45_20_end, leg5_m45_20, leg5_pe[3], std::array<double, 3>{-0.5000,         0, - 0.8660}.data());
-                auto& leg5_r5 = hex->addRevoluteJoint(leg5_75_end, leg5_45_20_end, leg5_pe[4], std::array<double, 3>{-0.8394, - 0.4305, - 0.3319}.data());
-                auto& leg5_r6 = hex->addRevoluteJoint(leg5_m45_20_end, leg5_75_end, leg5_pe[5], std::array<double, 3>{0.1323, - 0.4305, - 0.8929}.data());
+                auto& leg5_r5 = hex->addRevoluteJoint(leg5_75_end, leg5_45_20_end, leg5_pe[4], std::array<double, 3>{-0.8859, - 0.3494, - 0.3050}.data());
+                auto& leg5_r6 = hex->addRevoluteJoint(leg5_m45_20_end, leg5_75_end, leg5_pe[5], std::array<double, 3>{0.0765, - 0.5034, - 0.8607}.data());
                 auto& leg5_r7 = hex->addRevoluteJoint(leg5_45_20, leg5_m45_20_end, leg5_pe[6], std::array<double, 3>{-0.5000,         0, - 0.8660}.data());
-                auto& leg5_r8 = hex->addRevoluteJoint(leg5_75, leg5_45_20, leg5_pe[7], std::array<double, 3>{0.1323,    0.4305, - 0.8929}.data());
+                auto& leg5_r8 = hex->addRevoluteJoint(leg5_75, leg5_45_20, leg5_pe[7], std::array<double, 3>{0.0824,    0.4966, - 0.8641}.data());
 
                 // leg6
                 auto& leg6_r1 = hex->addRevoluteJoint(leg6_75, leg6_z, leg6_pe[0], std::array<double, 3>{0.5000,         0, - 0.8660}.data());
                 auto& leg6_r2 = hex->addRevoluteJoint(leg6_z, body, leg6_pe[1], std::array<double, 3>{0.8660,         0,    0.5000}.data());
-                auto& leg6_r3 = hex->addRevoluteJoint(leg6_m45_20, leg6_75, leg6_pe[2], std::array<double, 3>{-0.1323,    0.4305, - 0.8929}.data());
+                auto& leg6_r3 = hex->addRevoluteJoint(leg6_m45_20, leg6_75, leg6_pe[2], std::array<double, 3>{-0.1747,    0.3577, - 0.9174}.data());
                 auto& leg6_r4 = hex->addRevoluteJoint(leg6_45_20_end, leg6_m45_20, leg6_pe[3], std::array<double, 3>{0.5000,         0, - 0.8660}.data());
-                auto& leg6_r5 = hex->addRevoluteJoint(leg6_75_end, leg6_45_20_end, leg6_pe[4], std::array<double, 3>{-0.1323, - 0.4305, - 0.8929}.data());
-                auto& leg6_r6 = hex->addRevoluteJoint(leg6_m45_20_end, leg6_75_end, leg6_pe[5], std::array<double, 3>{ 0.8394, - 0.4305, - 0.3319}.data());
+                auto& leg6_r5 = hex->addRevoluteJoint(leg6_75_end, leg6_45_20_end, leg6_pe[4], std::array<double, 3>{-0.1788, - 0.3494, - 0.9197}.data());
+                auto& leg6_r6 = hex->addRevoluteJoint(leg6_m45_20_end, leg6_75_end, leg6_pe[5], std::array<double, 3>{ 0.7836, - 0.5034, - 0.3641}.data());
                 auto& leg6_r7 = hex->addRevoluteJoint(leg6_45_20, leg6_m45_20_end, leg6_pe[6], std::array<double, 3>{0.5000,         0, - 0.8660}.data());
-                auto& leg6_r8 = hex->addRevoluteJoint(leg6_75, leg6_45_20, leg6_pe[7], std::array<double, 3>{0.8394,    0.4305, - 0.3319}.data());
+                auto& leg6_r8 = hex->addRevoluteJoint(leg6_75, leg6_45_20, leg6_pe[7], std::array<double, 3>{0.7895,    0.4966, - 0.3607}.data());
 
                 //add motion//
 
@@ -2191,6 +2356,7 @@ auto createPlanHexapod()->std::unique_ptr<aris::plan::PlanRoot>
     plan_root->planPool().add<HexDynamicTurnLeftTest>();
     plan_root->planPool().add<HexDynamicTetrapodTest>();
     plan_root->planPool().add<SingleLeg>();
+    plan_root->planPool().add<MoveBody>();
 
 
 

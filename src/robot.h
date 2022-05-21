@@ -255,6 +255,18 @@ namespace robot
 		explicit SingleLeg(const std::string& name = "single");
 	};
 
+	//移动身体，腿不动
+	class MoveBody :public aris::core::CloneObject<MoveBody, aris::plan::Plan> {
+	public:
+		auto virtual prepareNrt()->void;
+		auto virtual executeRT()->int override;
+
+		virtual ~MoveBody();
+		explicit MoveBody(const std::string& name = "move_body");
+	};
+
+
+
 
 	auto createModelHexapod()->std::unique_ptr<aris::dynamic::Model>;
 	auto createControllerHexapod()->std::unique_ptr<aris::control::Controller>;
