@@ -8,7 +8,14 @@ using namespace std;
 
 extern double file_current_leg[18];
 extern double file_current_body[16];
+extern double temp_body_pos[16];
+extern double temp_leg_pos[18];
+extern double relate_body_pos[16];
 extern double PI;
+
+static double current_body_in_ground2[16] = { 0 };
+static double current_leg_in_ground2[18] = { 0 };
+
 //-------------------------------------------------------梯形曲线----------------------------------------------------//
 
 //生成梯形曲线0->1
@@ -138,6 +145,41 @@ auto EllipseTrajectory::getEllipseTrajectory(int count)->void
 	y_ = b_ * sin(PI - PI * s_.getTCurve(count));
 	z_ = c_ * (1 + cos(PI - PI * s_.getTCurve(count))) / 2.0;
 	//std::cout << y << std::endl;
+}
+
+//-------------------------------------------------直线轨迹  （身体） ------------------------------------------------//
+auto BodyMoveTrajectory::getStraightTraj(int count)->void
+{
+	x_ = a_ * s_.getTCurve(count);
+	y_ = b_ * s_.getTCurve(count);
+	z_ = c_ * s_.getTCurve(count);
+}
+
+
+//-------------------------------------------------直线轨迹  （腿） ------------------------------------------------//
+auto StraightTrajectory::getStraightTraj(int count)->void
+{
+	x_ = a_ * s_.getTCurve(count);
+	y_ = b_ * s_.getTCurve(count);
+	z_ = c_ * s_.getTCurve(count);
+}
+
+//-------------------------------------------------圆周轨迹  （腿） ------------------------------------------------//
+auto CircleTrajectory::getCircleTraj(int count)->void
+{
+	this->get_s().getCurveParam();
+	int T = this->get_s().getTc();
+	double theta = n_*2 * PI * this->get_s().getTCurve(count);
+	//这些都是过程量（变化量）
+	if (dir_ > 0) {//逆时针
+		x_ = r_ * (cos(theta) - 1);
+	}
+	else {
+		x_ = r_ * (1 - cos(theta));
+	}
+	
+	y_ = 0;
+	z_ = r_ * sin(theta);
 }
 
 
@@ -540,28 +582,77 @@ auto planBodyTransformTripod(int e_1, int n, double* current_body, int count, El
 	}
 }
 
+
+//规划身体用于腿不动，只移动身体
+auto planBodyTransformOnlyBodyMove(double* current_body, int count, BodyMoveTrajectory* bodyCurve)->void
+{
+	bodyCurve->getStraightTraj(count);
+
+	current_body[3] = temp_body_pos[3] + bodyCurve->get_x();
+	current_body[7] = temp_body_pos[7] + bodyCurve->get_y();
+	current_body[11] = temp_body_pos[11] + bodyCurve->get_z();
+
+
+
+}
+
+//规划腿直线运动，身体不动
+//current_leg 是腿末端的三个坐标xyz
+auto planLegTransformOnlyLegMove(double* current_leg, int leg_num, int count, StraightTrajectory* legCurve)->void
+{
+	legCurve->getStraightTraj(count);
+	//leg_num是第几条腿
+
+	current_leg[leg_num * 3 + 0] = temp_leg_pos[leg_num * 3 + 0] + legCurve->get_x();
+	current_leg[leg_num * 3 + 1] = temp_leg_pos[leg_num * 3 + 1] + legCurve->get_y();
+	current_leg[leg_num * 3 + 2] = temp_leg_pos[leg_num * 3 + 2] + legCurve->get_z();
+
+
+}
+
+
+//规划腿圆周运动，身体不动
+//current_leg 是腿末端的三个坐标xyz,这个相当于重载，根据参数类型不同
+auto planLegTransformOnlyLegMove(double* current_leg, int leg_num, int count, CircleTrajectory* legCurve)->void
+{
+	legCurve->getCircleTraj(count);
+	//leg_num是第几条腿
+
+	current_leg[leg_num * 3 + 0] = temp_leg_pos[leg_num * 3 + 0] + legCurve->get_x();
+	current_leg[leg_num * 3 + 1] = temp_leg_pos[leg_num * 3 + 1] + legCurve->get_y();
+	current_leg[leg_num * 3 + 2] = temp_leg_pos[leg_num * 3 + 2] + legCurve->get_z();
+
+
+}
+
+
+
+
 //本函数用于规划六足机器人原地旋转
 //每一个梯形曲线转过给定角度的一半，和tripod步态对应
 //count 是 0 -> count
 auto planBodyTurn(int count, double* current_body, BodyPose* body_pose_param)->void
 {
+	double roll = 0;
 	double yaw = 0;
+	double pitch = 0;
+	
 
-	//每个梯形曲线开始时读取之前的值
-	if (count == 0)
-	{
-		//yaw = body_pose_start_yaw;
-	}
-	if (count == 0) //有用，不能删，否则算不出角度
+
+	if (count == 1) //有用，不能删，否则算不出角度
 	{
 		for (int i = 0; i < 16; ++i)
 		{
 			current_body[i] = body_position_start_point[i];
 		}
+
 	}
+	
 	body_pose_param->getBodyRotationTrajectory(count); //由body设置的角度参数得到弧度制的旋转角（随时间）
 
 	yaw = body_pose_param->getCurrentYaw() / 2;
+	roll = body_pose_param->getCurrentRoll() / 2;
+	pitch = body_pose_param->getCurrentPitch() / 2;
 
 	double R_y[16] = {
 						 std::cos(yaw), 0, std::sin(yaw), 0,
@@ -570,19 +661,44 @@ auto planBodyTurn(int count, double* current_body, BodyPose* body_pose_param)->v
 								0, 0,        0, 1
 	};
 
-	double tempy[16] = { 0 };
+	double R_r[16] = {
+					 std::cos(roll),	-std::sin(roll),	0,					0,
+					 std::sin(roll),	std::cos(roll),		0,					0,
+					 0,					0,					1,					0,
+					 0,					0,					0,					1
+	};
 
-	aris::dynamic::s_pm_dot_pm(body_position_start_point, R_y, tempy); //矩阵相乘。tempy得到的是旋转后的身体位姿
-	std::copy(tempy, tempy + 16, current_body); //copy（拷贝内容的首地址，尾地址，拷贝目的地的首地址） 得到current_body
+	double R_p[16] = {
+					 1,					0,					0,					0,
+					 0,					std::cos(pitch),	-std::sin(pitch),	0,
+					 0,					std::sin(pitch),	std::cos(pitch),	0,
+					 0,					0,					0,					1
+	};
+
+	double tempy[16] = { 0 };
+	double tempr[16] = { 0 };
+	double tempp[16] = { 0 };
+
+	aris::dynamic::s_pm_dot_pm(temp_body_pos, R_y, tempy); //矩阵相乘。tempy得到的是旋转后的身体位姿
+	aris::dynamic::s_pm_dot_pm(tempy, R_r, tempr);
+	aris::dynamic::s_pm_dot_pm(tempr, R_p, tempp);
+	std::copy(tempp, tempp + 16, current_body); //copy（拷贝内容的首地址，尾地址，拷贝目的地的首地址） 得到current_body
+
+
+
 
 	//结束时保存变化之后的值
-	if (count + 1 == std::floor(body_pose_param->getTcurve().getTc() * 1000)) //std::floor 向下取整数
+	if (count+1  == std::floor(body_pose_param->getTcurve().getTc() * 1000)) //std::floor 向下取整数
 	{
 
 		for (int i = 0; i < 16; i++)
 		{
-			body_position_start_point[i] = current_body[i];
+			temp_body_pos[i] = current_body[i];
 		}
+		//std::cout << "aaaaaaaa" << std::endl;
+		//std::cout << "count = " << count << std::endl;
+		//coutMatrix16(current_body);
+
 	}
 }
 
@@ -672,6 +788,113 @@ auto tripodPlan(int n, int count, EllipseTrajectory* Ellipse, double* input)->in
 
 	return 2 * n * per_step_count - count - 1;
 }
+
+
+
+//身体平移规划
+//身体一步到达某个位置，不用几步
+auto bodyStaightMovePlan(int count, BodyMoveTrajectory* bodyCurve, double* input)->int
+{
+	int per_step_count = bodyCurve->get_s().getTc() * 1000;
+
+
+	
+
+	//腿不动，只用规划身体
+	//规划身体
+	planBodyTransformOnlyBodyMove(current_body_in_ground2, count, bodyCurve);
+	aris::dynamic::s_vc(16, body_position_start_point + 0, file_current_body + 0);
+
+	file_current_body[3] = current_body_in_ground2[3];
+	file_current_body[7] = current_body_in_ground2[7];
+	file_current_body[11] = current_body_in_ground2[11];
+
+
+	int tempret = per_step_count - count - 1;
+
+
+	if (tempret == 0) {
+		//更新参考坐标值
+		temp_body_pos[3] = temp_body_pos[3] + bodyCurve->get_a();
+		temp_body_pos[7] = temp_body_pos[7] + bodyCurve->get_b();
+		temp_body_pos[11] = temp_body_pos[11] + bodyCurve->get_c();
+
+
+	}
+
+	//模型测试使用
+	return tempret;
+
+}
+
+
+
+//把一条腿一步移动到某个位置
+auto legStaightMovePlan(int count, int leg_num,  StraightTrajectory* legCurve, double* input)->int
+{
+
+	int per_step_count = legCurve->get_s().getTc() * 1000;
+
+	//规划腿
+	planLegTransformOnlyLegMove(current_leg_in_ground2,leg_num, count, legCurve); //current_leg是记录在一个梯形曲线周期内的变化值，temp_leg是起始值，故每个周期结束后，要更新temp_leg
+	//把变化的腿的坐标传入file_current_leg
+	
+	//给特殊腿赋变化值
+	file_current_leg[leg_num * 3 + 0] = current_leg_in_ground2[leg_num * 3 + 0];
+	file_current_leg[leg_num * 3 + 1] = current_leg_in_ground2[leg_num * 3 + 1];
+	file_current_leg[leg_num * 3 + 2] = current_leg_in_ground2[leg_num * 3 + 2];
+
+
+	int tempret = per_step_count - count - 1;
+
+
+	if (tempret == 0) {
+		//更新参考坐标值
+		temp_leg_pos[leg_num * 3 + 0] = temp_leg_pos[leg_num * 3 + 0] + legCurve->get_a();
+		temp_leg_pos[leg_num * 3 + 1] = temp_leg_pos[leg_num * 3 + 1] + legCurve->get_b();
+		temp_leg_pos[leg_num * 3 + 2] = temp_leg_pos[leg_num * 3 + 2] + legCurve->get_c();
+
+
+
+	}
+
+	//模型测试使用
+	return tempret;
+
+}
+
+//指定某条腿在原本高度进行平面运动
+auto legCircleMovePlan(int count, int leg_num, CircleTrajectory* legCurve, double* input)->int
+{
+
+	int per_step_count = legCurve->get_s().getTc() * 1000;
+
+	//规划腿
+	planLegTransformOnlyLegMove(current_leg_in_ground2, leg_num, count, legCurve); //current_leg是记录在一个梯形曲线周期内的变化值，temp_leg是起始值，故每个周期结束后，要更新temp_leg
+	//把变化的腿的坐标传入file_current_leg
+
+	//给特殊腿赋变化值
+	file_current_leg[leg_num * 3 + 0] = current_leg_in_ground2[leg_num * 3 + 0];
+	file_current_leg[leg_num * 3 + 1] = current_leg_in_ground2[leg_num * 3 + 1];
+	file_current_leg[leg_num * 3 + 2] = current_leg_in_ground2[leg_num * 3 + 2];
+
+
+	int tempret = per_step_count - count - 1;
+
+
+	if (tempret == 0) {
+		//貌似无需更新参考坐标值，因为圆周运动会回到原点
+
+
+	}
+
+	//模型测试使用
+	return tempret;
+
+}
+
+
+
 
 //机器人行走四足步态，包括原地踏步、前进、后退、左移、右移。
 //其中步长步高和步数可由用户输入。走一步的时间（或行走快慢）可由用户输入梯形曲线的速度和加速度确定

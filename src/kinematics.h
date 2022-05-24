@@ -68,6 +68,8 @@ static double body_position_start_point[16] = {
 /**********函数声明**********/
 auto inverseLeg(double *Ground_xyz_ee, double *Ground_P_Body, double *input)->int;
 auto legInverseKinematics(double* ee_position, double* mot_pos)->void;
+auto coutMatrix16(double* matrix)->void;
+auto coutMatrix18(double* matrix)->void;
 
 #endif
 

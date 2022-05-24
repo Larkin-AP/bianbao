@@ -171,3 +171,23 @@ double PL6[16] =
  }
 
 
+auto coutMatrix16(double* matrix)->void
+ {
+	 for (int i = 0; i < 16; i++) {
+		 std::cout << matrix[i] << "\t";
+		 if (i % 4 == 3) {
+			 std::cout << std::endl;
+		 }
+	 }
+ }
+
+auto coutMatrix18(double* matrix)->void
+{
+	for (int i = 0; i < 18; i++) {
+		std::cout << matrix[i] << "\t";
+		if (i % 3 == 2) {
+			std::cout << std::endl;
+		}
+	}
+}
+

@@ -245,15 +245,7 @@ namespace robot
 	};
 
 
-	//单腿运动
-	class SingleLeg :public aris::core::CloneObject<SingleLeg, aris::plan::Plan> {
-	public:
-		auto virtual prepareNrt()->void;
-		auto virtual executeRT()->int override;
 
-		virtual ~SingleLeg();
-		explicit SingleLeg(const std::string& name = "single");
-	};
 
 	//移动身体，腿不动
 	class MoveBody :public aris::core::CloneObject<MoveBody, aris::plan::Plan> {
@@ -263,6 +255,26 @@ namespace robot
 
 		virtual ~MoveBody();
 		explicit MoveBody(const std::string& name = "move_body");
+	};
+
+	//扭转身体，腿不动
+	class WarpBody :public aris::core::CloneObject<WarpBody, aris::plan::Plan> {
+	public:
+		auto virtual prepareNrt()->void;
+		auto virtual executeRT()->int override;
+
+		virtual ~WarpBody();
+		explicit WarpBody(const std::string& name = "warp_body");
+	};
+
+	//双手操作
+	class Manipulate :public aris::core::CloneObject<Manipulate, aris::plan::Plan> {
+	public:
+		auto virtual prepareNrt()->void;
+		auto virtual executeRT()->int override;
+
+		virtual ~Manipulate();
+		explicit Manipulate(const std::string& name = "mani");
 	};
 
 

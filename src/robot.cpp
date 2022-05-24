@@ -14,7 +14,13 @@ double init_pos_angle[18] = { 0 };
 //输出参数，模型曲线测试使用
 double file_current_leg[18] = { 0 };
 double file_current_body[16] = { 0 };
+double temp_body_pos[16] = {
+                        1,0,0,0,
+                        0,1,0,0,
+                        0,0,1,0,
+                        0,0,0,1 }; //用于记录转变梯形轨迹时的参考点
 double time_test = 0;
+double temp_leg_pos[18] = { 0 };
 extern double PI;
 
 using namespace aris::dynamic;
@@ -1005,160 +1011,18 @@ HexForward::~HexForward() = default;
 
 
 
-            //单腿运动
-            auto SingleLeg::prepareNrt()->void
-            {
 
-            }
-            auto SingleLeg::executeRT()->int
-            {
-                //数值解和实际解xyr相差一个负号
-                //如果要输出cmd文件，则不能创建储存文件，需要注释掉
-                if (count() == 1)this->master()->logFileRawName("single");    
-
-
-                //a为给机器人缓冲落地的时间设置
-                int ret = 0, a = 100;
-                //末端为六个末端的三个坐标和身体的位姿矩阵 3*6+16=34
-                static double ee0[34];
-                double ee[34];
-
-                //落地缓冲时间
-                if (count() <= a)
-                {
-                    ret = 1;
-                    if (count() == 1)
-                    {
-                        model()->getOutputPos(ee0); //初始位置
-                        //s_vc好像是把ee0的数放到ee中，放34个数
-                        aris::dynamic::s_vc(34, ee0, ee);
-                    }
-                    aris::dynamic::s_vc(34, ee0, ee);
-                    model()->setOutputPos(ee);
-
-
-                    if (model()->inverseKinematics()) {
-                        std::cout << "inverse failed " << std::endl;
-                    }
-
-                    model()->setTime(0.001 * count());
-                }
-                else
-                {
-
-
-
-                    double body_pos[16] = {1,0,0,0,
-                                            0,1,0,0,
-                                            0,0,1,0,
-                                            0,0,0,1};
-
-                    double l = 0.0463672;
-                    
-                    double coeff = (count()-a) / 100.0;
-                    double theta = 0 / 100.0 * coeff;
-
-
-                    if (coeff == 1) {
-                        ret = 0;
-                    }
-                    else {
-                        ret = 1;
-                    }
-
-                    //double leg1[3] = { 0.05+l * sin(theta),-0.0025-l * cos(theta),0.026 };
-                    double leg1[3] = { 0.05, -0.0488072, 0.026 };
-                    std::cout << leg1[0] << "\t" << leg1[1] << "\t" << leg1[2] << std::endl;
-
-
-
-
-
-
-
-                    //这些坐标都需要是在地面坐标系下的坐标值
-                    aris::dynamic::s_vc(16, body_pos + 0, ee + 0);
-                    aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
-                    aris::dynamic::s_vc(3, leg1 + 0, ee + 16);
-
-
-
-
-
-
-
-                    //第一条腿电机的位置
-                    //double leg1MotorPos[3] = { 0 };
-                    //for (int i = 0; i < 3; ++i) {
-                    //    lout() << input_angle[i] << "\t";
-                    //}
-                    //lout() << std::endl;
-
-                    //解析解计算得到的输入的角度
-                    //for (int i = 0; i < 18; ++i)
-                    //    lout() << input_angle[i] << "\t";
-                    //lout() << std::endl;
-
-                    model()->setOutputPos(ee);
-                    //model()->setinputpos(input_angle);
-                    //if (model()->forwardkinematics()) {
-                    //    std::cout << "forward failer!" << std::endl;
-                    //}
-
-
-                    if (model()->inverseKinematics())
-                    {
-
-                        std::cout << "inverse failed!!!" << std::endl;
-                        //for (int i = 0; i < 34; ++i) {
-                        //    std::cout << ee[i] << std::endl;
-                        //}
-                        std::cout << "ret = " << ret << std::endl;
-                    }
-                    // 数值解计算得到的输入的角度
-                     double input[18];
-                     model()->getInputPos(input);
-                     for (int i = 0; i < 18; ++i)
-                         lout() << input[i] << "\t";
-                     lout() << std::endl;
-
-                    model()->setTime(0.001 * count());
-
-
-
-                    if (ret == 0) std::cout << count() << std::endl;
-
-                }
-                ////末端位置
-                //for (int i = 0; i < 34; ++i)
-                //    lout() << ee[i] << "\t";
-                //lout() << std::endl;
-                return ret;
-
-            }
-            SingleLeg::SingleLeg(const std::string& name)
-            {
-                aris::core::fromXmlString(command(),
-                    "<Command name=\"single\"/>");
-            }
-            SingleLeg::~SingleLeg() = default;
-
-
-            //单腿运动
+            //移动身体
+            //身体前后左右各运动一个梯形轨迹
             auto MoveBody::prepareNrt()->void
             {
 
             }
             auto MoveBody::executeRT()->int
             {
-                //数值解和实际解xyr相差一个负号
-                //如果要输出cmd文件，则不能创建储存文件，需要注释掉
-                if (count() == 1)this->master()->logFileRawName("single");
 
-
-                //a为给机器人缓冲落地的时间设置
-                int ret = 0, a = 100;
-                //末端为六个末端的三个坐标和身体的位姿矩阵 3*6+16=34
+                //if (count() == 1)this->master()->logFileRawName("movebody");
+                int ret = 0, a = 500;
                 static double ee0[34];
                 double ee[34];
 
@@ -1169,13 +1033,10 @@ HexForward::~HexForward() = default;
                     if (count() == 1)
                     {
                         model()->getOutputPos(ee0); //初始位置
-                        //s_vc好像是把ee0的数放到ee中，放34个数
                         aris::dynamic::s_vc(34, ee0, ee);
                     }
                     aris::dynamic::s_vc(34, ee0, ee);
                     model()->setOutputPos(ee);
-
-
                     if (model()->inverseKinematics()) {
                         std::cout << "inverse failed " << std::endl;
                     }
@@ -1184,103 +1045,473 @@ HexForward::~HexForward() = default;
                 }
                 else
                 {
-
-
-
-                    double body_pos[16] = { 1,0,0,0,
-                                            0,1,0,0,
-                                            0,0,1,0,
-                                            0,0,0,1 };
-
-                    double l = 0.0463672;
-
-                    double coeff = (count() - a) / 100.0;
-                    double theta = 0 / 100.0 * coeff;
-
-
-                    if (coeff == 1) {
-                        ret = 0;
-                    }
-                    else {
-                        ret = 1;
+                    //在开始之前，需要让temp_body_pos 为梯形轨迹变化的初始点
+                    if (count() ==  a + 1) {
+                        aris::dynamic::s_vc(16, body_position_start_point + 0, temp_body_pos + 0);
                     }
 
-                    //double leg1[3] = { 0.05+l * sin(theta),-0.0025-l * cos(theta),0.026 };
-                    double leg1[3] = { 0.05, -0.0488072, 0.026 };
-                    std::cout << leg1[0] << "\t" << leg1[1] << "\t" << leg1[2] << std::endl;
+                    TCurve s1(4, 2);
+                    s1.getCurveParam();
+                    int T = s1.getTc() * 1000; //梯形轨迹周期
+                    int num = (count() - a) / T; //用来判断现在是第几个梯形轨迹，num从0开始
+                    
+                    int n = 5; //几次身体运动
+                    int Ttotal = n * T+a;
+
+                    s1.getCurveParam();
+                    BodyMoveTrajectory e1(0.005, -0.005, 0.00, s1);
+                    BodyMoveTrajectory e2(-0.005, 0.00, 0.005, s1);
+                    BodyMoveTrajectory e3(-0.005, 0.00, -0.005, s1);
+                    BodyMoveTrajectory e4(0.005, 0.00, -0.005, s1);
+                    BodyMoveTrajectory e5(0.0, 0.005, 0.005, s1);
+
+                    BodyPose body_s(0, 0, 0, s1);
+                    //一个轨迹对应一个梯形轨迹周期
+                    if (num == 0)
+                    {
+                        ret = bodyStaightMovePlan(count() -num*T- a, &e1, input_angle);
+                    }
+                    else if (num == 1)
+                    {
+
+                        ret = bodyStaightMovePlan(count() - num * T - a, &e2, input_angle);
+                    }
+                    else if (num == 2)
+                    {
+
+                        ret = bodyStaightMovePlan(count() - num * T - a, &e3, input_angle);
+                    }
+                    else if (num == 3)
+                    {
+
+                        ret = bodyStaightMovePlan(count() - num * T - a, &e4, input_angle);
+                    }
+                    else if (num == 4)
+                    {
+
+                        ret = bodyStaightMovePlan(count() - num * T - a, &e5, input_angle);
+                    }
+
+                    ret = Ttotal - count();
 
 
 
+                    aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
 
-
-
-
-                    //这些坐标都需要是在地面坐标系下的坐标值
-                    aris::dynamic::s_vc(16, body_pos + 0, ee + 0);
                     aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
-                    aris::dynamic::s_vc(3, leg1 + 0, ee + 16);
 
 
-
-
-
-
-
-                    //第一条腿电机的位置
-                    //double leg1MotorPos[3] = { 0 };
-                    //for (int i = 0; i < 3; ++i) {
-                    //    lout() << input_angle[i] << "\t";
-                    //}
-                    //lout() << std::endl;
-
-                    //解析解计算得到的输入的角度
-                    //for (int i = 0; i < 18; ++i)
-                    //    lout() << input_angle[i] << "\t";
-                    //lout() << std::endl;
 
                     model()->setOutputPos(ee);
-                    //model()->setinputpos(input_angle);
-                    //if (model()->forwardkinematics()) {
-                    //    std::cout << "forward failer!" << std::endl;
-                    //}
+
 
 
                     if (model()->inverseKinematics())
                     {
 
                         std::cout << "inverse failed!!!" << std::endl;
-                        //for (int i = 0; i < 34; ++i) {
-                        //    std::cout << ee[i] << std::endl;
-                        //}
+
                         std::cout << "ret = " << ret << std::endl;
                     }
-                    // 数值解计算得到的输入的角度
-                    double input[18];
-                    model()->getInputPos(input);
-                    for (int i = 0; i < 18; ++i)
-                        lout() << input[i] << "\t";
-                    lout() << std::endl;
+
+                    ret = Ttotal  - count();
 
                     model()->setTime(0.001 * count());
+
 
 
 
                     if (ret == 0) std::cout << count() << std::endl;
 
                 }
-                ////末端位置
                 //for (int i = 0; i < 34; ++i)
                 //    lout() << ee[i] << "\t";
                 //lout() << std::endl;
+
+
+
                 return ret;
 
             }
             MoveBody::MoveBody(const std::string& name)
             {
                 aris::core::fromXmlString(command(),
-                    "<Command name=\"single\"/>");
+                    "<Command name=\"move_body\"/>");
             }
             MoveBody::~MoveBody() = default;
+
+
+
+
+            //扭转身体
+            auto WarpBody::prepareNrt()->void
+            {
+
+            }
+            auto WarpBody::executeRT()->int
+            {
+
+                //if (count() == 1)this->master()->logFileRawName("warpbody");
+                int ret = 0, a = 500;
+                static double ee0[34];
+                double ee[34];
+                double current_body_pos[16];
+
+                //落地缓冲时间
+                if (count() <= a)
+                {
+                    ret = 1;
+                    if (count() == 1)
+                    {
+                        model()->getOutputPos(ee0); //初始位置
+                        aris::dynamic::s_vc(34, ee0, ee);
+                    }
+                    aris::dynamic::s_vc(34, ee0, ee);
+                    model()->setOutputPos(ee);
+                    if (model()->inverseKinematics()) {
+                        std::cout << "inverse failed " << std::endl;
+                    }
+
+                    model()->setTime(0.001 * count());
+                }
+                else if (count() >a && count() <=(a+1000)) {
+                    if (count() == a + 1) {
+                        aris::dynamic::s_vc(16, body_position_start_point + 0, temp_body_pos + 0);
+                    }
+
+                    TCurve s1(4, 2);
+                    s1.getCurveParam();
+                    int T = s1.getTc() * 1000; //梯形轨迹周期
+                    BodyMoveTrajectory e1(0.00, -0.005, 0.00, s1);
+                    //一个轨迹对应一个梯形轨迹周期
+                    ret = bodyStaightMovePlan(count() - a-1, &e1, input_angle);
+                    aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
+                    aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
+                    model()->setOutputPos(ee); 
+                    if (model()->inverseKinematics())
+                    {
+                        std::cout << "inverse failed!!!" << std::endl;
+                        std::cout << "ret = " << ret << std::endl;
+                    }
+
+                    ret = 1;
+
+                    model()->setTime(0.001 * count());
+                }
+
+                else
+                {
+                    //在开始之前，需要让temp_body_pos 为梯形轨迹变化的初始点
+
+                    TCurve s1(4, 2);
+                    s1.getCurveParam();
+                    int T = s1.getTc() * 1000; //梯形轨迹周期
+                    int num = (count() - a-1000-1) / T; //用来判断现在是第几个梯形轨迹，num从0开始
+
+
+                    int n = 6; //几次身体运动
+                    int Ttotal = n * T + a+1000;
+
+                    s1.getCurveParam();
+
+
+                    BodyPose body_s1(0, 10, 0, s1);
+                    BodyPose body_s2(0, -10, 0, s1);
+                    BodyPose body_s3(10, 0, 0, s1);
+                    BodyPose body_s4(-10, 0, 0, s1);
+                    BodyPose body_s5(0, 0, 10, s1);
+                    BodyPose body_s6(0, 0, -10, s1);
+
+
+
+                    
+
+
+
+                    //一个轨迹对应一个梯形轨迹周期
+                    if (num == 0)
+                    {
+
+                        planBodyTurn(count() -num*T- a - 1000-1 , current_body_pos, &body_s1);
+                    }
+                    else if (num == 1)
+                    {
+
+                        planBodyTurn(count() - num * T - a - 1000-1 , current_body_pos, &body_s2);
+                    }
+                    else if (num == 2)
+                    {
+
+                        planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s3);
+                    }
+                    else if (num == 3)
+                    {
+
+                        planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s4);
+                    }
+                    else if (num == 4)
+                    {
+
+                        planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s5);
+                    }
+                    else if (num == 5)
+                    {
+                        planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s6);
+                    }
+                    //else if (num == 6)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s7);
+                    //}
+                    //else if (num == 7)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s8);
+                    //}
+                    //else if (num == 8)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s9);
+                    //}
+
+                    for (int i = 0; i < 16; ++i)
+                    {
+                        file_current_body[i] = current_body_pos[i];
+                    }
+
+                    ret = Ttotal - count();
+
+
+
+                    aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
+
+                    aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
+
+
+
+                    model()->setOutputPos(ee);
+
+
+
+                    if (model()->inverseKinematics())
+                    {
+
+                        std::cout << "inverse failed!!!" << std::endl;
+
+                        std::cout << "(IK)count() = " << count() << std::endl;
+                    }
+
+                    ret = Ttotal - count();
+
+                    model()->setTime(0.001 * count());
+
+
+
+
+
+
+                }
+                //for (int i = 0; i < 34; ++i)
+                //    lout() << ee[i] << "\t";
+                //lout() << std::endl;
+
+
+                if (ret == 0) std::cout << count() << std::endl;
+                return ret;
+
+            }
+            WarpBody::WarpBody(const std::string& name)
+            {
+                aris::core::fromXmlString(command(),
+                    "<Command name=\"warp_body\"/>");
+            }
+            WarpBody::~WarpBody() = default;
+
+
+            //双手操作
+            auto Manipulate::prepareNrt()->void
+            {
+
+            }
+            auto Manipulate::executeRT()->int
+            {
+
+                //if (count() == 1)this->master()->logFileRawName("mani");
+                int ret = 0, a = 500;
+                static double ee0[34];
+                double ee[34];
+                double current_body_pos[16];
+
+                //落地缓冲时间
+                if (count() <= a)
+                {
+                    ret = 1;
+                    if (count() == 1)
+                    {
+                        model()->getOutputPos(ee0); //初始位置
+                        aris::dynamic::s_vc(34, ee0, ee);
+                    }
+                    aris::dynamic::s_vc(34, ee0, ee);
+                    model()->setOutputPos(ee);
+                    if (model()->inverseKinematics()) {
+                        std::cout << "inverse failed " << std::endl;
+                    }
+
+                    model()->setTime(0.001 * count());
+                }
+                else if (count() > a && count() <= (a + 1000)) {//身体下移，保证后续操作空间
+                    if (count() == a + 1) {
+                        aris::dynamic::s_vc(16, body_position_start_point + 0, temp_body_pos + 0);
+                    }
+
+                    TCurve s1(4, 2);
+                    s1.getCurveParam();
+                    int T = s1.getTc() * 1000; //梯形轨迹周期
+                    BodyMoveTrajectory e1(0.00, -0.005, 0.00, s1);
+                    //一个轨迹对应一个梯形轨迹周期
+                    ret = bodyStaightMovePlan(count() - a - 1, &e1, input_angle);
+                    aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
+                    aris::dynamic::s_vc(18, foot_position_start_point + 0, ee + 16);
+                    model()->setOutputPos(ee);
+                    if (model()->inverseKinematics())
+                    {
+                        std::cout << "inverse failed!!!" << std::endl;
+                        std::cout << "ret = " << ret << std::endl;
+                    }
+
+                    ret = 1;
+
+                    model()->setTime(0.001 * count());
+                }
+
+                else
+                {
+                    if (count() == a +1000+ 1) {
+                        aris::dynamic::s_vc(16, foot_position_start_point + 0, temp_leg_pos + 0);
+                    }
+                    
+
+                    TCurve s1(4, 2);
+                    s1.getCurveParam();
+                    int T = s1.getTc() * 1000; //梯形轨迹周期
+                    int num = (count() - a - 1000 - 1) / T; //用来判断现在是第几个梯形轨迹，num从0开始
+
+
+                    int n = 2; //几次身体运动
+                    int Ttotal = n * T + a + 1000;
+
+                    
+
+                    if (num == 0)//身体翘起，并且把双手抬起
+                    {
+                        //身体翘起
+                        BodyPose body_s1(0, 0, -10, s1);
+                        planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s1);
+                        for (int i = 0; i < 16; ++i)
+                        {
+                            file_current_body[i] = current_body_pos[i];
+                        }
+                        aris::dynamic::s_vc(18, foot_position_start_point + 0, file_current_leg + 0); //给所有值赋初值
+                        //双手抬起
+                        StraightTrajectory leg_s1(-0.00, 0.02, 0.025, s1);//此处传入三个坐标要移动的距离
+                        ret = legStaightMovePlan(count() - num * T - a - 1000 - 1, 1, &leg_s1, input_angle);//一条腿对应一次函数调用，对应一个leg_s,leg_num 是从0->5
+                        ret = legStaightMovePlan(count() - num * T - a - 1000 - 1, 2, &leg_s1, input_angle);//一条腿对应一次函数调用，对应一个leg_s,leg_num 是从0->5
+
+                    }
+                    else if (num == 1)
+                    {
+                        for (int i = 0; i < 16; ++i)
+                        {
+                            file_current_body[i] = temp_body_pos[i];
+                        }
+                        //在上面的姿态下让两只手进行圆周运动
+                        CircleTrajectory leg_s2(0.006, 1.0,2, s1);//半径 r  方向  圈数 梯形曲线
+                        CircleTrajectory leg_s3(0.006, -1.0,2, s1);//半径 r  方向 圈数 梯形曲线
+                        ret = legCircleMovePlan(count() - num * T - a - 1000 - 1, 1, &leg_s2, input_angle);//一条腿对应一次函数调用，对应一个leg_s,leg_num 是从0->5
+                        ret = legCircleMovePlan(count() - num * T - a - 1000 - 1, 2, &leg_s3, input_angle);//一条腿对应一次函数调用，对应一个leg_s,leg_num 是从0->5
+                    }
+                    //else if (num == 2)
+                    //{
+
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s3);
+                    //}
+                    //else if (num == 3)
+                    //{
+
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s4);
+                    //}
+                    //else if (num == 4)
+                    //{
+
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s5);
+                    //}
+                    //else if (num == 5)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s6);
+                    //}
+                    //else if (num == 6)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s7);
+                    //}
+                    //else if (num == 7)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s8);
+                    //}
+                    //else if (num == 8)
+                    //{
+                    //    planBodyTurn(count() - num * T - a - 1000 - 1, current_body_pos, &body_s9);
+                    //}
+
+
+
+                    ret = Ttotal - count();
+
+
+
+                    aris::dynamic::s_vc(16, file_current_body + 0, ee + 0);
+
+                    aris::dynamic::s_vc(18, file_current_leg + 0, ee + 16);
+
+
+
+                    model()->setOutputPos(ee);
+
+
+
+                    if (model()->inverseKinematics())
+                    {
+
+                        std::cout << "inverse failed!!!" << std::endl;
+
+                        std::cout << "(IK)count() = " << count() << std::endl;
+                    }
+
+                    ret = Ttotal - count();
+
+                    model()->setTime(0.001 * count());
+
+
+
+
+
+
+                }
+                //for (int i = 0; i < 34; ++i)
+                //    lout() << ee[i] << "\t";
+                //lout() << std::endl;
+
+
+                if (ret == 0) std::cout << count() << std::endl;
+                return ret;
+
+            }
+            Manipulate::Manipulate(const std::string& name)
+            {
+                aris::core::fromXmlString(command(),
+                    "<Command name=\"mani\"/>");
+            }
+            Manipulate::~Manipulate() = default;
+
+
+
+
 
 
 
@@ -2355,8 +2586,9 @@ auto createPlanHexapod()->std::unique_ptr<aris::plan::PlanRoot>
     plan_root->planPool().add<HexDynamicTurnRightTest>();
     plan_root->planPool().add<HexDynamicTurnLeftTest>();
     plan_root->planPool().add<HexDynamicTetrapodTest>();
-    plan_root->planPool().add<SingleLeg>();
     plan_root->planPool().add<MoveBody>();
+    plan_root->planPool().add<WarpBody>();
+    plan_root->planPool().add<Manipulate>();
 
 
 

@@ -38,10 +38,12 @@ int main(int argc, char *argv[])
 	//robot::HexDynamicBackTest plan;           //后退没有修改可以直接使用，运行时间4.5s
 	//robot::HexDynamicRightTest plan;          //右移没有修改可以直接使用，运行时间4.5s
 	//robot::HexDynamicLeftTest plan;           //左移没有修改可以直接使用，运行时间4.5s
-	robot::HexDynamicTurnRightTest plan;		//右转没有修改可以直接使用，运行时间4.5s，但步长只能是0.1，目前看来就是正负号导致不能更改步长,但问题未找到
+	//robot::HexDynamicTurnRightTest plan;		//右转没有修改可以直接使用，运行时间4.5s，但步长只能是0.1，目前看来就是正负号导致不能更改步长,但问题未找到
 	//robot::HexDynamicTurnLeftTest plan;		//左转没有修改可以直接使用，运行时间4.5s
 	//robot::HexDynamicTetrapodTest plan;		//四足步态没有修改可以直接使用，运行时间6.5s
-	//robot::SingleLeg plan;
+	//robot::MoveBody plan;
+	//robot::WarpBody plan;
+	robot::Manipulate plan;
 
 	adams1.simulate(plan, cs.model().simResultPool().front());
 	adams1.saveAdams("C:\\Users\\jpche\\Desktop\\bbb\\hexapod_simulation_with_control.cmd", cs.model().simResultPool().front()); //这个模型还含有运动参数
